@@ -81,7 +81,7 @@ if [ "$h" != 1 ]; then
 fi
 
 # Get base64 encoded public key...
-data=$(gpg --export --export-options export-minimal "$keyid" | base64)
+data=$(gpg --export --export-options export-minimal "$keyid" | base64 -w 0)
 
 # ...and build RR lines
 gpg --list-keys "$keyid" | grep ^uid | grep @ | while read h uid; do
