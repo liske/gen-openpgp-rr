@@ -1,0 +1,92 @@
+#!/bin/sh
+
+# gen-openpgp-rr - generate OpenPGP RR (to be used with DANE)
+#
+# Authors:
+#   Thomas Liske <thomas@fiasko-nw.net>
+#
+# Copyright Holder:
+#   2014 (C) Thomas Liske [http://fiasko-nw.net/~thomas/]
+#
+# License:
+#   This program is free software; you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation; either version 2 of the License, or
+#   (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this package; if not, write to the Free Software
+#   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+#
+
+if [ "$#" != 1 ]; then
+    echo "Usage: $0 <#keyid>
+
+This script creates DNS RR for every UID found for the given #keyid. #keyid
+may be any key identifier (long or short ID or email address) as long as
+\`gpg --list-keys <#keyid>\` finds exactly one key!
+
+The RR lines could be directly added to the corresponding zone files and
+should comply with:
+
+    https://tools.ietf.org/html/draft-ietf-dane-openpgpkey-01
+
+
+Authors:
+  Thomas Liske <thomas@fiasko-nw.net>
+
+Copyright Holder:
+  2014 (C) Thomas Liske [http://fiasko-nw.net/~thomas/]
+
+Upstream:
+  https://github.com/liske/gen-openpgp-rr
+
+" 1>&2
+    exit 1
+fi
+
+keyid="$1"
+
+unset LANG
+
+h=`gpg --list-keys "$keyid" 2> /dev/null | grep ^pub | wc -l`
+if [ "$h" = 0 ]; then
+    echo "Sorry, no key '$keyid' found!" 1>&2
+    exit 2
+fi
+
+if [ "$h" != 1 ]; then
+    (
+	echo "Sorry, multiple keys for '$keyid' found:"
+	echo
+	gpg --list-keys "$keyid" | grep -A 1 ^pub
+    ) 1>&2
+    exit 3
+fi
+
+data=$(gpg --export --export-options export-minimal "$keyid" | base64)
+gpg --list-keys "$keyid" | grep ^uid | grep @ | while read h uid; do
+    # extract mail from UID
+    maddr=${uid##*<}
+    maddr=${maddr%>*}
+
+    # get local_part of mail address
+    lpart=${maddr%%@*}
+
+    # get domain of mail address
+    domain=${maddr##*@}
+
+    # build sha2-224 for local_part
+    lps224=$(echo -n "$lpart" | sha224sum)
+    lps224=${lps224%% *}
+
+    # generate zone RR
+    echo "; $keyid - $maddr"
+    echo "$lps224._openpgpkey.$domain.	IN	OPENPGPKEY $data"
+    echo
+done
