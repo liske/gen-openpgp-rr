@@ -11,8 +11,5 @@ may be any key identifier (long or short ID or email address) as long as
 `gpg --list-keys <#keyid>` finds exactly one key!
 
 The RR lines could be directly added to the corresponding zone files and
-should comply with:
-
-    https://tools.ietf.org/html/draft-ietf-dane-openpgpkey-01
-
+should comply with https://tools.ietf.org/html/draft-ietf-dane-openpgpkey-01
 
