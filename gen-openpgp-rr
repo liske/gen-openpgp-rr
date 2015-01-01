@@ -52,24 +52,38 @@ fi
 
 keyid="$1"
 
+# check dependencies
+tools="gpg sha224sum base64"
+for tool in $tools; do
+    if ! which "$tool" > /dev/null; then
+	echo "Missing dependency: $tool" 1>&2
+	exit 2
+    fi
+done
+
 unset LANG
 
+# Lookup key and stop if...
 h=`gpg --list-keys "$keyid" 2> /dev/null | grep ^pub | wc -l`
+# ...no key is found.
 if [ "$h" = 0 ]; then
     echo "Sorry, no key '$keyid' found!" 1>&2
-    exit 2
+    exit 3
 fi
-
+# ...more than one key is found.
 if [ "$h" != 1 ]; then
     (
 	echo "Sorry, multiple keys for '$keyid' found:"
 	echo
 	gpg --list-keys "$keyid" | grep -A 1 ^pub
     ) 1>&2
-    exit 3
+    exit 4
 fi
 
+# Get base64 encoded public key...
 data=$(gpg --export --export-options export-minimal "$keyid" | base64)
+
+# ...and build RR lines
 gpg --list-keys "$keyid" | grep ^uid | grep @ | while read h uid; do
     # extract mail from UID
     maddr=${uid##*<}
