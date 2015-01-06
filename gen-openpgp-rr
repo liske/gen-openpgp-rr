@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # gen-openpgp-rr - generate OpenPGP RR (to be used with DANE)
 #
@@ -24,12 +24,15 @@
 #   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 #
 
-if [ "$#" != 1 ]; then
-    echo "Usage: $0 <#keyid>
+if [ "$#" -lt 1 -a "$#" -gt 2 ] ; then
+    echo "Usage: $0 <#keyid> [#mode]
 
 This script creates DNS RR for every UID found for the given #keyid. #keyid
 may be any key identifier (long or short ID or email address) as long as
 \`gpg --list-keys <#keyid>\` finds exactly one key!
+
+#mode is one of 'openpgpkey' or 'generic'. 'generic' should be used if your
+DNS server does not support the OPENPGPKEY RR type.
 
 The RR lines could be directly added to the corresponding zone files and
 should comply with:
@@ -80,8 +83,17 @@ if [ "$h" != 1 ]; then
     exit 4
 fi
 
-# Get base64 encoded public key...
-data=$(gpg --export --export-options export-minimal "$keyid" | base64 -w 0)
+# Get encoded public key...
+case "$2" in
+    generic)
+	len=$(gpg --export --export-options export-minimal "$keyid" | wc -c)
+	hex=$(gpg --export --export-options export-minimal "$keyid" | hexdump -e '"\t" /1 "%.2x"' -e '/32 ""' | tr -d "\t")
+	data="TYPE65280 \\# $len $hex"
+	;;
+    *)
+	data='OPENPGPKEY '$(gpg --export --export-options export-minimal "$keyid" | base64 -w 0)
+	;;
+esac
 
 # ...and build RR lines
 gpg --list-keys "$keyid" | grep ^uid | grep @ | while read h uid; do
@@ -101,6 +113,6 @@ gpg --list-keys "$keyid" | grep ^uid | grep @ | while read h uid; do
 
     # generate zone RR
     echo "; $keyid - $maddr"
-    echo "$lps224._openpgpkey.$domain.	IN	OPENPGPKEY $data"
+    echo "$lps224._openpgpkey.$domain.	IN	$data"
     echo
 done
